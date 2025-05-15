@@ -43,83 +43,133 @@
 </div>
 
 <div id="output"></div>
+<div id="log" style="margin-top: 30px; white-space: pre-wrap; font-family: monospace;"></div>
+
 <script>
     let completed = [];
-let juz = 0, pages = 0, remain = 0, sp = 0, day = 0, k = 0, p = 0;
-
-function startAgenda() {
-    completed = [];
-    const comp = parseInt(document.getElementById("completedCount").value);
-    juz = parseInt(document.getElementById("currentJuz").value);
-    pages = parseInt(document.getElementById("totalPages").value);
-
-    completed.push(30);
-    for (let i = 1; i <= comp - 1; i++) {
-        completed.push(i);
+    let juz = 0, pages = 0, remain = 0, sp = 0, day = 0, k = 0, p = 0;
+    let log = [];
+    
+    function startAgenda() {
+        completed = [];
+        const comp = parseInt(document.getElementById("completedCount").value);
+        juz = parseInt(document.getElementById("currentJuz").value);
+        pages = parseInt(document.getElementById("totalPages").value);
+    
+        completed.push(30);
+        for (let i = 1; i <= comp - 1; i++) {
+            completed.push(i);
+        }
+    
+        remain = pages;
+        sp = 0;
+        day = 0;
+        k = 0;
+        p = Math.floor(completed.length / 2);
+        log = [];
+    
+        document.getElementById("output").innerText = "";
+        document.getElementById("log").innerText = "";
+        document.getElementById("readingSection").style.display = "block";
+        document.getElementById("pagesRead").value = "";
+        appendOutput(`Started tracking for Juz ${juz} with ${pages} pages.`);
+        saveLog();
     }
-
-    remain = pages;
-    sp = 0;
-    day = 0;
-    k = 0;
-    p = Math.floor(completed.length / 2);
-
-    document.getElementById("output").innerText = "";
-    document.getElementById("readingSection").style.display = "block";
-    document.getElementById("pagesRead").value = "";
-    appendOutput(`Started tracking for Juz ${juz} with ${pages} pages.`);
-}
+    
     function submitReading() {
-    const pagesRead = parseInt(document.getElementById("pagesRead").value);
-    if (isNaN(pagesRead) || pagesRead <= 0) {
-        appendOutput("❌ Please enter a valid number of pages.");
-        return;
+        const pagesRead = parseInt(document.getElementById("pagesRead").value);
+        if (isNaN(pagesRead) || pagesRead <= 0) {
+            appendOutput("❌ Please enter a valid number of pages.");
+            return;
+        }
+    
+        remain -= pagesRead;
+        sp += pagesRead;
+        day++;
+    
+        // Clear output
+        clearOutput();
+    
+        const date = new Date().toLocaleDateString();
+        const dourType = (day % 2 === 0) ? "second" : "first";
+        const kDour = `Your dour is: ${dourType} half of juz ${completed[k]}`;
+        const pDour = `Your dour is: ${dourType} half of juz ${completed[p]}`;
+    
+        appendOutput(`📅 ${date}`);
+        appendOutput(`You have ${Math.max(remain, 0)} pages left.`);
+        appendOutput(`Your sabaq para is from page 1 to page ${sp} of juz ${juz}.`);
+        appendOutput(kDour);
+        if (completed.length >= 4) {
+            appendOutput(pDour);
+        }
+    
+        const logEntry = {
+            date: date,
+            pagesRead: pagesRead,
+            sabaqEnd: sp,
+            juz: juz,
+            dour: [kDour],
+        };
+    
+        if (completed.length >= 4) {
+            logEntry.dour.push(pDour);
+        }
+    
+        log.push(logEntry);
+        saveLog();
+    
+        // Rotate dour indices
+        if (day % 2 === 0) {
+            k = (k < Math.floor(completed.length / 2) - 1) ? k + 1 : 0;
+            p = (p < completed.length - 1) ? p + 1 : Math.floor(completed.length / 2);
+        }
+    
+        if (remain <= 0) {
+            appendOutput(`🎉 You have completed juz ${juz}!`);
+            completed.push(juz);
+            document.getElementById("readingSection").style.display = "none";
+            saveLog();
+        }
+    
+        document.getElementById("pagesRead").value = '';
+        renderLog();
     }
-
-    remain -= pagesRead;
-    sp += pagesRead;
-    day++;
-
-    // Clear previous output
-    clearOutput();
-
-    appendOutput(`You have ${Math.max(remain, 0)} pages left.`);
-    appendOutput(`Your sabaq para is from page 1 to page ${sp} of juz ${juz}.`);
-
-    const dourType = (day % 2 === 0) ? "second" : "first";
-
-    // Show only k if completed length is less than 4
-    appendOutput(`Your dour is: ${dourType} half of juz ${completed[k]}`);
-    if (completed.length >= 4) {
-        appendOutput(`Your dour is: ${dourType} half of juz ${completed[p]}`);
+    
+    function appendOutput(text) {
+        const outputDiv = document.getElementById("output");
+        outputDiv.innerText += text + "\n";
     }
-
-    // Update k and p every 2 days
-    if (day % 2 === 0) {
-        k = (k < Math.floor(completed.length / 2) - 1) ? k + 1 : 0;
-        p = (p < completed.length - 1) ? p + 1 : Math.floor(completed.length / 2);
+    
+    function clearOutput() {
+        document.getElementById("output").innerText = "";
     }
-
-    if (remain <= 0) {
-        appendOutput(`🎉 You have completed juz ${juz}!`);
-        completed.push(juz);
-        document.getElementById("readingSection").style.display = "none";
+    
+    function renderLog() {
+        const logDiv = document.getElementById("log");
+        logDiv.innerText = "📚 Reading Log:\n\n";
+        log.forEach(entry => {
+            logDiv.innerText += `📅 ${entry.date} - Read ${entry.pagesRead} pages\n`;
+            logDiv.innerText += `Sabaq: Page 1 to ${entry.sabaqEnd} of Juz ${entry.juz}\n`;
+            entry.dour.forEach(d => logDiv.innerText += `${d}\n`);
+            logDiv.innerText += `\n`;
+        });
     }
-
-    document.getElementById("pagesRead").value = '';
-}
-
-function appendOutput(text) {
-    const outputDiv = document.getElementById("output");
-    outputDiv.innerText += text + "\n";
-}
-
-function clearOutput() {
-    document.getElementById("output").innerText = "";
-}
-</script>
-
-
+    
+    function saveLog() {
+        localStorage.setItem("juzLog", JSON.stringify(log));
+    }
+    
+    function loadLog() {
+        const saved = localStorage.getItem("juzLog");
+        if (saved) {
+            log = JSON.parse(saved);
+            renderLog();
+        }
+    }
+    
+    // Load saved log on page load
+    window.onload = loadLog;
+    </script>
     
 
 </body>
