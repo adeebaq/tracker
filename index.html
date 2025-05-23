@@ -18,37 +18,91 @@
             padding: 10px;
             border: 1px solid #ccc;
         }
+        
     </style>
 </head>
 <body>
 
 <h2>Hifz Tracker</h2>
+<div id="startMenu">
+    <h2>Welcome! What would you like to do?</h2>
+    <button onclick="startNewJuz()">📘 Start New Juz</button>
+    <button onclick="continueJuz()">📖 Continue Last Juz</button>
+  </div>
 
-<label>How many Juz have you completed so far?</label><br>
-<input type="number" id="completedCount"><br>
+  <div id="newJuzForm" style="display:none;">
+    <label>How many Juz have you completed so far?</label>
+    <input type="number" id="completedCount"><br><br>
+  
+    <label>What Juz are you on?</label>
+    <input type="number" id="currentJuz"><br><br>
+  
+    <label>How many pages are in this Juz?</label>
+    <input type="number" id="totalPages"><br><br>
 
-<label>What Juz are you on?</label><br>
-<input type="number" id="currentJuz"><br>
+    <button onclick="startAgenda()">Start</button><br><br>
+  </div>
+  <button onclick="toggleLog()">📜 View Log</button>
+  <div id="log" style="margin-top: 30px; white-space: pre-wrap; font-family: monospace; display:none;"></div>
+  
+<button onclick="clearLog()">Clear All Logs</button>
 
-<label>How many pages are in this Juz?</label><br>
-<input type="number" id="totalPages"><br>
-
-<button onclick="startAgenda()">Start</button>
 
 <div id="readingSection" style="display:none;">
     <h3>Daily Reading</h3>
-    <label>How many pages did you read today?</label><br>
-    <input type="number" id="pagesRead"><br>
-    <button onclick="submitReading()">Submit</button>
+    <label>How many pages of sabaq today?</label>
+    <input type="number" id="pagesRead"><br><br>
+    <button onclick="submitReading()">Submit</button><br><br>
+
+    <div id="output" style="white-space: pre-wrap; font-family: monospace; margin-top: 10px;"></div>
+
+    <div id="noteSection" style="display:none; margin-top: 10px;">
+        <label>Any notes for today?</label><br>
+        <textarea id="dailyNote" rows="3" cols="50" placeholder="Write your notes here..."></textarea><br>
+        <button onclick="saveNote()">Save Note</button>
+    </div>
 </div>
 
-<div id="output"></div>
-<div id="log" style="margin-top: 30px; white-space: pre-wrap; font-family: monospace;"></div>
+
 
 <script>
     let completed = [];
     let juz = 0, pages = 0, remain = 0, sp = 0, day = 0, k = 0, p = 0;
     let log = [];
+
+    function startNewJuz() {
+    document.getElementById("startMenu").style.display = "none";
+    document.getElementById("newJuzForm").style.display = "block";
+}
+
+function continueJuz() {
+    const session = JSON.parse(localStorage.getItem("currentSession"));
+    if (!session || !session.juz || !session.pages) {
+        alert("No valid saved session found. Please start a new Juz.");
+        return;
+    }
+
+    // Restore everything
+    juz = session.juz;
+    pages = session.pages;
+    remain = session.remain;
+    sp = session.sp;
+    day = session.day;
+    k = session.k;
+    p = session.p;
+    completed = Array.isArray(session.completed) ? session.completed : [30];
+
+    document.getElementById("startMenu").style.display = "none";
+    document.getElementById("readingSection").style.display = "block";
+    document.getElementById("output").innerText = "";
+
+    appendOutput(`📖 Resuming Juz ${juz}`);
+    appendOutput(`Pages read: ${sp}`);
+    appendOutput(`Pages remaining: ${remain}`);
+}
+
+
+
     
     function startAgenda() {
         completed = [];
@@ -61,79 +115,159 @@
             completed.push(i);
         }
     
-        remain = pages;
-        sp = 0;
-        day = 0;
-        k = 0;
-        p = Math.floor(completed.length / 2);
-        log = [];
+        // Restore session if matching juz
+        const savedSession = JSON.parse(localStorage.getItem("currentSession"));
+        if (savedSession && savedSession.juz === juz) {
+            remain = savedSession.remain;
+            sp = savedSession.sp;
+            day = savedSession.day;
+            k = savedSession.k;
+            p = savedSession.p;
+        } else {
+            remain = pages;
+            sp = 0;
+            day = 0;
+            k = 0;
+            p = Math.floor(completed.length / 2);
+        }
     
         document.getElementById("output").innerText = "";
-        document.getElementById("log").innerText = "";
         document.getElementById("readingSection").style.display = "block";
         document.getElementById("pagesRead").value = "";
-        appendOutput(`Started tracking for Juz ${juz} with ${pages} pages.`);
-        saveLog();
+        appendOutput(`Resuming Juz ${juz} — ${remain} pages remaining.`);
     }
     
+    let currentEntry = null;
+
     function submitReading() {
         const pagesRead = parseInt(document.getElementById("pagesRead").value);
         if (isNaN(pagesRead) || pagesRead <= 0) {
             appendOutput("❌ Please enter a valid number of pages.");
             return;
         }
-    
+
         remain -= pagesRead;
         sp += pagesRead;
         day++;
-    
-        // Clear output
-        clearOutput();
-    
+
         const date = new Date().toLocaleDateString();
         const dourType = (day % 2 === 0) ? "second" : "first";
         const kDour = `Your dour is: ${dourType} half of juz ${completed[k]}`;
-        const pDour = `Your dour is: ${dourType} half of juz ${completed[p]}`;
-    
+        const pDour = (completed.length >= 4) ? `Your dour is: ${dourType} half of juz ${completed[p]}` : null;
+
+        // Clear and show today's output
+        clearOutput();
         appendOutput(`📅 ${date}`);
         appendOutput(`You have ${Math.max(remain, 0)} pages left.`);
         appendOutput(`Your sabaq para is from page 1 to page ${sp} of juz ${juz}.`);
         appendOutput(kDour);
-        if (completed.length >= 4) {
-            appendOutput(pDour);
-        }
-    
-        const logEntry = {
+        if (pDour) appendOutput(pDour);
+
+        // Save current entry without note for now
+        currentEntry = {
             date: date,
             pagesRead: pagesRead,
             sabaqEnd: sp,
             juz: juz,
-            dour: [kDour],
+            kDour: kDour,
+            pDour: pDour,
+            note: null
         };
-    
-        if (completed.length >= 4) {
-            logEntry.dour.push(pDour);
-        }
-    
-        log.push(logEntry);
-        saveLog();
-    
+
         // Rotate dour indices
         if (day % 2 === 0) {
             k = (k < Math.floor(completed.length / 2) - 1) ? k + 1 : 0;
             p = (p < completed.length - 1) ? p + 1 : Math.floor(completed.length / 2);
         }
-    
+
+        // Save session progress
+        saveSession();
+
         if (remain <= 0) {
-            appendOutput(`🎉 You have completed juz ${juz}!`);
+            appendOutput(`🎉 You have completed Juz ${juz}!`);
             completed.push(juz);
+            localStorage.removeItem("currentSession");
             document.getElementById("readingSection").style.display = "none";
-            saveLog();
         }
-    
+
+    // Show notes section now
+        document.getElementById("noteSection").style.display = "block";
         document.getElementById("pagesRead").value = '';
-        renderLog();
+        document.getElementById("dailyNote").value = '';
     }
+    function saveNote() {
+        const note = document.getElementById("dailyNote").value.trim();
+        if (!currentEntry) {
+            alert("No reading entry to attach this note to.");
+            return;
+        }
+
+        currentEntry.note = note || null;
+        log.push(currentEntry);
+        saveLog();
+        renderLog();
+
+        currentEntry = null;
+        document.getElementById("noteSection").style.display = "none";
+        alert("Note saved!");
+}
+
+    function saveLog() {
+        localStorage.setItem("juzLog", JSON.stringify(log));
+    }
+    
+    
+    function saveSession() {
+        const session = {
+            juz,
+            pages,
+            remain,
+            sp,
+            day,
+            k,
+            p,
+            completed
+        };
+        localStorage.setItem("currentSession", JSON.stringify(session));
+    }
+    
+    
+    
+    function loadLog() {
+        const saved = localStorage.getItem("juzLog");
+        if (saved) {
+            log = JSON.parse(saved);
+            renderLog();
+        }
+    }
+    
+    function toggleLog() {
+    const logDiv = document.getElementById("log");
+    // Toggle visibility of the log
+    if (logDiv.style.display === "none") {
+        logDiv.style.display = "block";
+        renderLog(); // Render the log when shown
+    } else {
+        logDiv.style.display = "none";
+    }
+}
+
+function renderLog() {
+    const logDiv = document.getElementById("log");
+    logDiv.innerText = "📚 Reading Log:\n\n";
+    log.forEach(entry => {
+        logDiv.innerText += `📅 ${entry.date} - Read ${entry.pagesRead} pages\n`;
+        logDiv.innerText += `Sabaq: Page 1 to ${entry.sabaqEnd} of Juz ${entry.juz}\n`;
+        logDiv.innerText += `${entry.kDour}\n`;
+        if (entry.pDour) {
+            logDiv.innerText += `${entry.pDour}\n`;
+        }
+        if (entry.note) {
+            logDiv.innerText += `📝 Note: ${entry.note}\n`;
+        }
+        logDiv.innerText += `\n`;
+    });
+}
     
     function appendOutput(text) {
         const outputDiv = document.getElementById("output");
@@ -144,30 +278,17 @@
         document.getElementById("output").innerText = "";
     }
     
-    function renderLog() {
-        const logDiv = document.getElementById("log");
-        logDiv.innerText = "📚 Reading Log:\n\n";
-        log.forEach(entry => {
-            logDiv.innerText += `📅 ${entry.date} - Read ${entry.pagesRead} pages\n`;
-            logDiv.innerText += `Sabaq: Page 1 to ${entry.sabaqEnd} of Juz ${entry.juz}\n`;
-            entry.dour.forEach(d => logDiv.innerText += `${d}\n`);
-            logDiv.innerText += `\n`;
-        });
-    }
-    
-    function saveLog() {
-        localStorage.setItem("juzLog", JSON.stringify(log));
-    }
-    
-    function loadLog() {
-        const saved = localStorage.getItem("juzLog");
-        if (saved) {
-            log = JSON.parse(saved);
+    function clearLog() {
+        if (confirm("Are you sure you want to delete all your saved entries?")) {
+            localStorage.removeItem("juzLog");
+            localStorage.removeItem("currentSession");
+            log = [];
             renderLog();
+            alert("Log cleared.");
         }
     }
     
-    // Load saved log on page load
+    // Load logs on page load
     window.onload = loadLog;
     </script>
     
